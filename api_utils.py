@@ -1,28 +1,28 @@
-from geopy.geocoders import Nominatim
+import googlemaps
 import networkx as nx
-import math
 import time
 
-geolocator = Nominatim(user_agent="route_project")
+# 🔑 PUT YOUR API KEY HERE
+gmaps = googlemaps.Client(key="ENTER-THE_API_KEY")
 
 def get_coordinates(place):
-    time.sleep(1)  # avoid API blocking
-    location = geolocator.geocode(place)
-    if location is None:
-        raise ValueError(f"Could not find location: {place}")
-    return (location.latitude, location.longitude)
+    time.sleep(0.2)
+    result = gmaps.geocode(place)
+    if not result:
+        raise ValueError(f"Could not geocode {place}")
+    loc = result[0]["geometry"]["location"]
+    return (loc["lat"], loc["lng"])
 
-def haversine(c1, c2):
-    lat1, lon1 = c1
-    lat2, lon2 = c2
-    R = 6371  # km
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = (math.sin(dlat/2)**2 +
-         math.cos(math.radians(lat1)) *
-         math.cos(math.radians(lat2)) *
-         math.sin(dlon/2)**2)
-    return 2 * R * math.asin(math.sqrt(a))
+def get_road_distance(origin, destination):
+    directions = gmaps.directions(
+        origin,
+        destination,
+        mode="driving"
+    )
+    if not directions:
+        raise ValueError("No route found")
+
+    return directions[0]["legs"][0]["distance"]["value"] / 1000  # km
 
 def create_graph_from_locations(locations):
     G = nx.Graph()
@@ -34,7 +34,8 @@ def create_graph_from_locations(locations):
 
     for i in range(len(locations)):
         for j in range(i + 1, len(locations)):
-            d = haversine(coords[locations[i]], coords[locations[j]])
-            G.add_edge(locations[i], locations[j], weight=d)
+            dist = get_road_distance(locations[i], locations[j])
+            G.add_edge(locations[i], locations[j], weight=dist)
 
     return G, coords
+
